@@ -26,8 +26,7 @@ Floods strike unexpectedly. Traditional warning systems help—but rarely offer 
 - **Power Source**: 12V Lead Acid Battery
 - **Software**: Arduino IDE + Fritzing + Fusion 360
 
-![Block Diagram](documentation/flood rescue smart pod BLD)
-
+- Refer to the circit diagram in image folder
 ---
 
 ## 🛠️ Hardware Used
@@ -57,15 +56,9 @@ Floods strike unexpectedly. Traditional warning systems help—but rarely offer 
 3. Gyroscope tracks stability.
 4. Status is logged, and alerts are raised.
 
-![Circuit Diagram](documentation/flood rescue smart pod CRD)
+- Refer to the circit diagram in image folder
 
----
 
-## 📷 Gallery
-
-Add your setup photos and working videos here for better visualization.
-
----
 
 ## 🚀 Getting Started
 
@@ -96,7 +89,7 @@ Install the following Arduino libraries via Library Manager:
 
 ## 📄 Documentation
 
-- [📘 Full Report (PDF)](documentation/floodrescuesmartpod.pdf)
+-Refer to the report in documentation folder 
 
 ---
 
