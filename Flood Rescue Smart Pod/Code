@@ -1,1 +1,189 @@
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_BMP085.h>
+#include <DHT.h>
 
+#define DHTPIN A2
+#define DHTTYPE DHT11
+
+#define MAX_P 102000        // Max pressure
+#define MIN_P 98000         // Min pressure
+
+#define WATER_SENSOR_PIN A1
+#define WATER_LEVEL_THRESHOLD 250
+
+// Relay Pins (Active LOW logic)
+#define RELAY_MOTOR_PUMP_1_PIN 3
+#define RELAY_MOTOR_PUMP_2_PIN 4
+
+// Buzzer Pin
+#define BUZZER_PIN 5
+
+// LED Pins
+#define LED_PIN_1 6
+#define LED_PIN_2 7
+#define LED_PIN_3 8
+#define LED_PIN_4 9
+
+#define DANGER_GYRO_THRESHOLD 20
+#define TCAADDR 0x70
+
+DHT dht(DHTPIN, DHTTYPE);
+Adafruit_MPU6050 mpu;
+Adafruit_BMP085 bmp1;
+Adafruit_BMP085 bmp2;
+
+void tcaSelect(uint8_t channel) {
+  if (channel > 7) return;
+  Wire.beginTransmission(TCAADDR);
+  Wire.write(1 << channel);
+  Wire.endTransmission();
+}
+
+void setup() {
+  Serial.begin(9600);
+  Wire.begin();
+
+  pinMode(RELAY_MOTOR_PUMP_1_PIN, OUTPUT);
+  digitalWrite(RELAY_MOTOR_PUMP_1_PIN, HIGH); // OFF initially
+
+  pinMode(RELAY_MOTOR_PUMP_2_PIN, OUTPUT);
+  digitalWrite(RELAY_MOTOR_PUMP_2_PIN, HIGH); // OFF initially
+
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+
+  pinMode(LED_PIN_1, OUTPUT);
+  pinMode(LED_PIN_2, OUTPUT);
+  pinMode(LED_PIN_3, OUTPUT);
+  pinMode(LED_PIN_4, OUTPUT);
+  digitalWrite(LED_PIN_1, LOW);
+  digitalWrite(LED_PIN_2, LOW);
+  digitalWrite(LED_PIN_3, LOW);
+  digitalWrite(LED_PIN_4, LOW);
+
+  dht.begin();
+
+  tcaSelect(0);
+  if (!bmp1.begin()) {
+    Serial.println("Error: BMP180 (Channel 0) not found!");
+  } else {
+    Serial.println("BMP180 (Channel 0) found.");
+  }
+
+  tcaSelect(1);
+  if (!mpu.begin()) {
+    Serial.println("Error: MPU6050 (Channel 1) not found!");
+  } else {
+    Serial.println("MPU6050 (Channel 1) found.");
+  }
+
+  tcaSelect(2);
+  if (!bmp2.begin()) {
+    Serial.println("Error: BMP180 (Channel 2) not found!");
+  } else {
+    Serial.println("BMP180 (Channel 2) found.");
+  }
+
+  Serial.println("--- Setup Complete ---");
+}
+
+void loop() {
+  float temp = dht.readTemperature();
+  float hum = dht.readHumidity();
+
+  int waterValue = analogRead(WATER_SENSOR_PIN);
+  bool waterLow = waterValue <= WATER_LEVEL_THRESHOLD;
+  bool waterHigh = waterValue > WATER_LEVEL_THRESHOLD;
+
+  Serial.print("Raw Water Sensor Value: ");
+  Serial.println(waterValue);
+
+  tcaSelect(0);
+  float pressure1 = bmp1.readPressure();
+
+  tcaSelect(2);
+  float pressure2 = bmp2.readPressure();
+
+  tcaSelect(1);
+  sensors_event_t a, g, temp_mpu;
+  mpu.getEvent(&a, &g, &temp_mpu);
+
+  // Motor Pump 1 (Filling) logic
+  if (waterLow && pressure1 < MAX_P && pressure2 < MAX_P) {
+    digitalWrite(RELAY_MOTOR_PUMP_1_PIN, LOW); // Active LOW: ON
+    Serial.println("Motor Pump 1 ON (FILLING).");
+  } else {
+    digitalWrite(RELAY_MOTOR_PUMP_1_PIN, HIGH); // OFF
+    Serial.println("Motor Pump 1 OFF.");
+  }
+
+  // Motor Pump 2 (Draining) logic
+  if (waterHigh && pressure1 > MIN_P && pressure2 > MIN_P) {
+    digitalWrite(RELAY_MOTOR_PUMP_2_PIN, LOW); // Active LOW: ON
+    Serial.println("Motor Pump 2 ON (DRAINING).");
+  } else {
+    digitalWrite(RELAY_MOTOR_PUMP_2_PIN, HIGH); // OFF
+    Serial.println("Motor Pump 2 OFF.");
+  }
+
+  // Buzzer
+  if (digitalRead(RELAY_MOTOR_PUMP_1_PIN) == LOW || digitalRead(RELAY_MOTOR_PUMP_2_PIN) == LOW) {
+    digitalWrite(BUZZER_PIN, HIGH);
+    Serial.println("Buzzer ON: A motor pump is active.");
+  } else {
+    digitalWrite(BUZZER_PIN, LOW);
+  }
+
+  // LEDs for water level
+  if (waterHigh) {
+    digitalWrite(LED_PIN_1, HIGH);
+    digitalWrite(LED_PIN_2, HIGH);
+    digitalWrite(LED_PIN_3, HIGH);
+    digitalWrite(LED_PIN_4, HIGH);
+    Serial.println("LEDs ON: Water level is high.");
+  } else {
+    digitalWrite(LED_PIN_1, LOW);
+    digitalWrite(LED_PIN_2, LOW);
+    digitalWrite(LED_PIN_3, LOW);
+    digitalWrite(LED_PIN_4, LOW);
+    Serial.println("LEDs OFF: Water level is not high.");
+  }
+
+  // Serial Debug Info
+  Serial.print("Water Level: ");
+  Serial.print(waterValue);
+  Serial.print(" (Threshold: ");
+  Serial.print(WATER_LEVEL_THRESHOLD);
+  Serial.print(") - ");
+  Serial.println(waterHigh ? "Water HIGH" : "Water LOW");
+
+  Serial.print("DHT Temp: ");
+  Serial.print(temp);
+  Serial.print(" C, Humidity: ");
+  Serial.print(hum);
+  Serial.println(" %");
+
+  Serial.print("Gyro (rad/s) X: ");
+  Serial.print(g.gyro.x);
+  Serial.print(", Y: ");
+  Serial.print(g.gyro.y);
+  Serial.print(", Z: ");
+  Serial.println(g.gyro.z);
+
+  if (abs(pressure1 - pressure2) >= 5) {
+    Serial.println("Unequal pressure in airbags!");
+  } else {
+    Serial.println("Pressure Balanced");
+  }
+
+  if (abs(g.gyro.x) > DANGER_GYRO_THRESHOLD || abs(g.gyro.y) > DANGER_GYRO_THRESHOLD || abs(g.gyro.z) > DANGER_GYRO_THRESHOLD) {
+    Serial.println("UNSTABLE / DANGEROUS TILT");
+  } else {
+    Serial.println("Tilt is Stable");
+  }
+
+  Serial.println("---");
+  delay(1000);
+}
