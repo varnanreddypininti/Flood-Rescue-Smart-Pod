@@ -96,7 +96,7 @@ Install the following Arduino libraries via Library Manager:
 
 ## 📄 Documentation
 
-- [📘 Full Report (PDF)](documentation/flood rescue smart pod report)
+- [📘 Full Report (PDF)](documentation/floodrescuesmartpod.pdf)
 
 ---
 
